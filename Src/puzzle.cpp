@@ -56,9 +56,9 @@ puzzle::puzzle(params& _user_params) : user_params(_user_params) {
 
 
 void puzzle::print_edges(){
-    
+
     cv::Scalar color = cv::Scalar(255);
-    
+
     for(uint i =0; i<pieces.size(); i++){
         for(int j=0; j<4; j++){
             cv::Mat m = cv::Mat::zeros(500, 500, CV_8UC1 );
@@ -81,9 +81,9 @@ std::vector<piece> puzzle::extract_pieces() {
     std::vector<piece> pieces;
     imlist color_images = utils::getImages(user_params.getInputDir());
 
-    logger::stream() << "Extracting pieces..." << std::endl;    
+    logger::stream() << "Extracting pieces..." << std::endl;
     logger::flush();
-    
+
     //Threshold the image, anything of intensity greater than the threshold becomes white (255)
     //anything below becomes 0
 //    imlist blured_images = blur(color_images, 7, 5);
@@ -98,7 +98,7 @@ std::vector<piece> puzzle::extract_pieces() {
     }
 
     uint piece_number = user_params.getInitialPieceId();
-    
+
 
     //For each input image
     for(uint i = 0; i < color_images.size(); i++){
@@ -106,7 +106,7 @@ std::vector<piece> puzzle::extract_pieces() {
         char image_number_buf[80];
         sprintf(image_number_buf, "%03d", i+1);
         std::string image_number(image_number_buf);
-        
+
         if (user_params.isSavingOriginals()) {
             utils::write_debug_img(user_params, bw[i],"original-bw", image_number);
             utils::write_debug_img(user_params, color_images[i], "original-color", image_number);
@@ -114,44 +114,44 @@ std::vector<piece> puzzle::extract_pieces() {
 
         std::vector<std::vector<cv::Point> > found_contours;
 
-        
+
         //This isn't used but the opencv function wants it anyways.
         std::vector<cv::Vec4i> hierarchy;
 
         //Need to clone b/c it will get modified
         cv::findContours(bw[i].clone(), found_contours, hierarchy, cv::RETR_LIST, cv::CHAIN_APPROX_NONE);
 
-        
- 
+
+
         //For each contour in that image
         //TODO: (In anticipation of the other TODO's Re-create the b/w image
         //    based off of the contour to eliminate noise in the layer mask
 
-        contour_mgr contour_mgr(bw[i].size().width, bw[i].size().height, user_params); 
+        contour_mgr contour_mgr(bw[i].size().width, bw[i].size().height, user_params);
 
         for(uint j = 0; j < found_contours.size(); j++) {
             cv::Rect bounds =  cv::boundingRect(found_contours[j]);
             if(bounds.width < user_params.getEstimatedPieceSize() || bounds.height < user_params.getEstimatedPieceSize()) continue;
-            
+
             contour_mgr.add_contour(bounds, utils::remove_duplicates(found_contours[j]));
         }
 
         contour_mgr.sort_contours();
-        
+
         if (user_params.isVerifyingContours() || user_params.isSavingContours()) {
             std::vector<std::vector<cv::Point> > contours_to_draw;
-            cv::Mat cmat = cv::Mat::zeros(bw[i].size().height, bw[i].size().width, CV_8UC3);    
+            cv::Mat cmat = cv::Mat::zeros(bw[i].size().height, bw[i].size().width, CV_8UC3);
             double font_scale = sqrt(bw[i].size().height * bw[i].size().width) / 1000;
             for (uint j = 0; j < contour_mgr.contours.size(); j++) {
                 cv::Rect bounds = contour_mgr.contours[j].bounds;
                 contours_to_draw.push_back(contour_mgr.contours[j].points);
                 // Text indicating contour order within the image
                 cv::putText(cmat, std::to_string(j+piece_number), cv::Point2f(bounds.x+bounds.width/2-(10.0*font_scale),bounds.y+bounds.height/2+(10.0*font_scale)),
-                        cv::FONT_HERSHEY_COMPLEX_SMALL, font_scale, cv::Scalar(0, 255, 255), 1, COMPAT_CV_LINE_AA);                
+                        cv::FONT_HERSHEY_COMPLEX_SMALL, font_scale, cv::Scalar(0, 255, 255), 1, COMPAT_CV_LINE_AA);
             }
 
             cv::drawContours(cmat, contours_to_draw, -1, cv::Scalar(255,255,255), 2, 16);
-            
+
             if (user_params.isVerifyingContours()) {
                 if (i == 0) {
                     std::cout << "With focus on the contours image window:" << std::endl;
@@ -164,7 +164,7 @@ std::vector<piece> puzzle::extract_pieces() {
                 utils::write_debug_img(user_params, cmat, "contours", image_number);
             }
         }
-        
+
         // Uncomment to save a version of the original with the piece numbers overlayed
         /*
         if (user_params.isSavingOriginals()) {
@@ -174,13 +174,13 @@ std::vector<piece> puzzle::extract_pieces() {
                 cv::Rect bounds = contour_mgr.contours[j].bounds;
                 // Text indicating contour order within the image
                 cv::putText(cmat, std::to_string(j+1), cv::Point2f(bounds.x+bounds.width/2-(10.0*font_scale),bounds.y+bounds.height/2+(10.0*font_scale)),
-                        cv::FONT_HERSHEY_COMPLEX_SMALL, font_scale, cv::Scalar(255,255,255), 2, cv::LINE_AA);                
+                        cv::FONT_HERSHEY_COMPLEX_SMALL, font_scale, cv::Scalar(255,255,255), 2, cv::LINE_AA);
             }
 
             write_debug_img(user_params, cmat, "numbered", image_number);
         }
         */
-        
+
         for (uint j = 0; j < contour_mgr.contours.size(); j++) {
             int bordersize = 15;
             std::stringstream idstream;
@@ -188,10 +188,10 @@ std::vector<piece> puzzle::extract_pieces() {
             char id_buffer[80];
             snprintf(id_buffer, 80, "%03d-%03d-%04d", i+1, j+1, piece_number);
             std::string piece_id(id_buffer);
-            
+
             cv::Rect bounds = contour_mgr.contours[j].bounds;
             std::vector<cv::Point> points = contour_mgr.contours[j].points;
-            
+
             cv::Mat new_bw = cv::Mat::zeros(bounds.height+2*bordersize,bounds.width+2*bordersize,CV_8UC1);
             std::vector<std::vector<cv::Point> > contours_to_draw;
             contours_to_draw.push_back(utils::translate_contour(points, bordersize-bounds.x, bordersize-bounds.y));
@@ -205,7 +205,7 @@ std::vector<piece> puzzle::extract_pieces() {
             cv::Mat color_roi = color_images[i](b2);
             cv::Mat mini_color = cv::Mat::zeros(bounds.height+2*bordersize,bounds.width+2*bordersize,CV_8UC3);
             color_roi.copyTo(mini_color(cv::Rect(bordersize-3,bordersize-3,b2.width,b2.height)));
-            
+
             if (user_params.isSavingColor()) {
                 utils::write_debug_img(user_params, mini_color, "color", piece_id);
             }
@@ -213,15 +213,15 @@ std::vector<piece> puzzle::extract_pieces() {
             //Create a copy so it can't conflict.
             mini_color = mini_color.clone();
             mini_bw = mini_bw.clone();
-            
+
             piece p(piece_number, piece_id, mini_color, mini_bw, user_params);
             pieces.push_back(p);
-            
+
             piece_number += 1;
-            
+
         }
     }
-    
+
     for (std::vector<piece>::iterator i= pieces.begin(); i != pieces.end(); i++) {
         i->process();
     }
@@ -233,9 +233,9 @@ std::vector<piece> puzzle::extract_pieces() {
 
 
 void puzzle::fill_costs(){
-    
+
     int no_edges = (int) pieces.size()*4;
-    
+
     //TODO: use openmp to speed up this loop w/o blocking the commented lines below
 //    omp_set_num_threads(4);
 #pragma omp parallel for schedule(dynamic)
@@ -252,19 +252,41 @@ void puzzle::fill_costs(){
         }
     }
     std::sort(matches.begin(),matches.end(),match_score::compare);
+
+    /*
+    std::stringstream solutionlogfilename;
+    solutionlogfilename << user_params.getOutputDir() << user_params.getSolutionFileBasename() << "-solutions.log";
+    std::ofstream solstream;
+    solstream.open(solutionlogfilename.str());
+    std::vector<match_score>::iterator m = matches.begin();
+    while( m!=matches.end() )
+    {
+      int p1 = m->edge1/4;
+      int e1 = m->edge1%4;
+      int p2 = m->edge2/4;
+      int e2 = m->edge2%4;
+      solstream << "Score :: " <<
+              "Piece:" << pieces[p1].get_id() << " Edge:" << e1 << " , " <<
+              "Piece:" << pieces[p2].get_id() << " Edge:" << e2 <<
+              " , Score:" << m->score << std::endl;
+      solstream.flush();
+      m++;
+    }
+    solstream.close();
+    */
 }
 
 void puzzle::auto_solve(PuzzleDisjointSet& p) {
     int output_id=0;
-    
-    
+
+
     std::vector<match_score>::iterator i= matches.begin();
     while(!p.in_one_set() && i!=matches.end() ){
         int p1 = i->edge1/4;
         int e1 = i->edge1%4;
         int p2 = i->edge2/4;
         int e2 = i->edge2%4;
-        
+
         if (user_params.isSavingMatches()) {
             cv::Mat m = cv::Mat::zeros(500,500,CV_8UC1);
             std::stringstream out_file_name;
@@ -276,7 +298,7 @@ void puzzle::auto_solve(PuzzleDisjointSet& p) {
             cv::imwrite(out_file_name.str(), m);
         }
         if (user_params.isVerbose()) {
-            logger::stream() << "Attempting to merge: " << pieces[p1].get_id() << "-" << (e1+1) << " with: " << 
+            logger::stream() << "Attempting to merge: " << pieces[p1].get_id() << "-" << (e1+1) << " with: " <<
                     pieces[p2].get_id() << "-" << (e2+1) << ", score:" << i->score << " count: "  << output_id <<std::endl;
             logger::flush();
         }
@@ -288,29 +310,31 @@ void puzzle::auto_solve(PuzzleDisjointSet& p) {
         }
         i++;
         output_id += 1;
-    }    
+    }
 }
 
 // Unlike auto_solve, in which the sets managed by PuzzleDisjointSet randomly coalesce during the solution phase,
 // guided_solve attempts to help the human operator by keeping the number of matched sets down to a minimum
 void puzzle::guided_solve(PuzzleDisjointSet& p) {
     int output_id=0;
-    
+
     bool done = false;
     int work_on = -1;
-    
+
     if (user_params.getWorkOnPiece() != -1) {
         work_on = user_params.getWorkOnPiece() - user_params.getInitialPieceId();
-        
+
         if (work_on < 0 || work_on >= pieces.size()) {
-            logger::stream() << "Error, 'work on' piece number " << user_params.getWorkOnPiece() << " is out of range.  Expected a value between " 
+            logger::stream() << "Error, 'work on' piece number " << user_params.getWorkOnPiece() << " is out of range.  Expected a value between "
                     << user_params.getInitialPieceId() << " and " << (pieces.size() + user_params.getInitialPieceId() - 1) << std::endl;
             logger::flush();
             exit(1);
         }
     }
-    
-    
+
+    std::map<std::string,std::string>::iterator it;
+    std::string id;
+
     while (!p.in_one_set()) {
         std::vector<match_score>::iterator i= matches.begin();
         while(!p.in_one_set() && i!=matches.end() ) {
@@ -318,7 +342,8 @@ void puzzle::guided_solve(PuzzleDisjointSet& p) {
             int e1 = i->edge1%4;
             int p2 = i->edge2/4;
             int e2 = i->edge2%4;
-            
+
+
             PuzzleDisjointSet::join_context c;
             p.init_join(c, p1, p2, e1, e2);
             if (!c.joinable || is_boundary_edge(p1, e1) || is_boundary_edge(p2, e2)) {
@@ -326,7 +351,7 @@ void puzzle::guided_solve(PuzzleDisjointSet& p) {
                 output_id += 1;
                 continue;
             }
-            
+
             if (work_on != -1) {
                 if (work_on == c.rep_a) {
                     // no-op
@@ -340,7 +365,7 @@ void puzzle::guided_solve(PuzzleDisjointSet& p) {
                     continue;
                 }
             }
-            // Attempt to join if nothing has been joined yet (collection_set_count == 0), or if 
+            // Attempt to join if nothing has been joined yet (collection_set_count == 0), or if
             // one of the two rep sets is a collection set and the other is unmatched.
             else if (p.collection_set_count() == 0 || (p.is_collection_set(c.rep_a) && p.is_unmatched_set(p2))) {
                 // no-op
@@ -348,16 +373,27 @@ void puzzle::guided_solve(PuzzleDisjointSet& p) {
             else if (p.is_collection_set(c.rep_b) && p.is_unmatched_set(p1)) {
                 // swap order so that the collection set is in rep_a
                 p.init_join(c, p2, p1, e2, e1);
-            } 
+            }
             else {
                 i++;
-                output_id += 1;                
+                output_id += 1;
                 continue;
             }
-            
+
             p.compute_join(c);
 
             if (c.joinable) {
+
+                /* skip if piece edge is in guided matches */
+                //std::cout << "Is matched? :: ";
+                //if (is_edge_matched(user_params.getInitialPieceId(), c.a, c.how_a)) {
+                //    i++;
+                //    output_id += 1;
+                //    //std::cout << "True" << std::endl;
+                //    continue;
+                //}
+                //std::cout << "False" << std::endl;
+
                 std::string response = guide_match(c.a, c.b, c.how_a, c.how_b);
                 if (response == GM_COMMAND_YES) {
                     p.complete_join(c);
@@ -372,13 +408,13 @@ void puzzle::guided_solve(PuzzleDisjointSet& p) {
                     PuzzleDisjointSet::forest f = p.get(c.rep_a);
                     std::cout << set_to_string(f.rotations, 0) << std::endl;
                     continue;
-                }   
+                }
                 else if (response == GM_COMMAND_MARK_BOUNDARY) {
                     set_boundary_edge(c.a, c.how_a);
                     continue;
                 }
                 else if (response == GM_COMMAND_WORK_ON_SET) {
-                    
+
                     std::cout << "Current matched groups IDs are: ";
                     for (uint j = 0; j < p.get_collection_sets().size(); j++) {
                         if (j > 0) {
@@ -387,25 +423,25 @@ void puzzle::guided_solve(PuzzleDisjointSet& p) {
                         std::cout << (p.get_collection_sets()[j] + user_params.getInitialPieceId());
                     }
                     std::cout << std::endl;
-                    
+
                     int piece_number;
                     bool read_success = false;
-                    
+
                     do {
                         std::cout << "Enter a piece number: " << std::flush;
                         std::cin >> piece_number;
-                        
+
                         if (std::cin.fail()) {
                             std::cin.clear();
                             std::cin.ignore(999,'\n');
                             std::cout << "Invalid input" << std::endl;
                             continue;
                         }
-                        
+
                         int work_on_id = piece_number - user_params.getInitialPieceId();
-                        
+
                         if (work_on_id < 0 || work_on_id >= pieces.size()) {
-                            std::cout << "Error, " << piece_number << " is out of range.  Expected a value between " 
+                            std::cout << "Error, " << piece_number << " is out of range.  Expected a value between "
                                     << user_params.getInitialPieceId() << " and " << (pieces.size() + user_params.getInitialPieceId() - 1) << std::endl;
                         }
                         else {
@@ -426,8 +462,8 @@ void puzzle::guided_solve(PuzzleDisjointSet& p) {
                 }
             }
             i++;
-            output_id += 1;                    
-        }   
+            output_id += 1;
+        }
     }
 }
 
@@ -441,7 +477,7 @@ bool puzzle::check_match(int p1, int p2, int e1, int e2) {
     double escore;
     double score = pieces[p1].edges[e1].compare3(pieces[p2].edges[e2], cscore, escore);
     if (user_params.isVerbose()) {
-        std::cout << "check_match(" << (p1+user_params.getInitialPieceId()) << ", " << (p2+user_params.getInitialPieceId()) 
+        std::cout << "check_match(" << (p1+user_params.getInitialPieceId()) << ", " << (p2+user_params.getInitialPieceId())
                 << ", " << e1 << ", " << e2 << ")=" << cscore << " / " << escore << std::endl;
     }
     if (score == DBL_MAX || cscore > user_params.getCscoreLimit() || escore > user_params.getEscoreLimit()) {
@@ -452,13 +488,13 @@ bool puzzle::check_match(int p1, int p2, int e1, int e2) {
 
 //Solves the puzzle
 void puzzle::solve(){
-    
+
     load_guided_matches();
     load_boundary_edges();
-    
+
     PuzzleDisjointSet p(user_params, pieces.size(), match_check_function, this);
     // PuzzleDisjointSet p(user_params, pieces.size(), NULL, NULL);
-    
+
     if (!user_params.isGuidedSolution()) {
         auto_solve(p);
     }
@@ -467,7 +503,7 @@ void puzzle::solve(){
     }
 
     p.finish();
-    
+
     if(p.in_one_set()){
         logger::stream() << "Possible solution found" << std::endl;
         logger::flush();
@@ -475,13 +511,13 @@ void puzzle::solve(){
         PuzzleDisjointSet::forest f = p.get(p.find(1));
         solution = f.locations;
         solution_rotations = f.rotations;
-        
+
         for(int i =0; i<solution.size[0]; i++){
             for(int j=0; j<solution.size[1]; j++){
                 int piece_number = solution(i,j);
                 pieces[piece_number].rotate(4-solution_rotations(i,j));
             }
-        }   
+        }
     }
 }
 
@@ -499,7 +535,7 @@ void puzzle::load_boundary_edges() {
 
     std::string date;
     std::string id;
-    
+
     while (true) {
 
         istream >> date;
@@ -507,10 +543,10 @@ void puzzle::load_boundary_edges() {
         if (istream.eof()) {
             break;
         }
-        
+
         boundary_edges[id] = "yes";
     }
-    
+
     istream.close();
 }
 
@@ -524,10 +560,10 @@ std::string get_boundary_edge_id(int initial_piece_id, int p1, int e1) {
 }
 
 void puzzle::set_boundary_edge(int p1, int e1) {
-    
+
     std::string id = get_boundary_edge_id(user_params.getInitialPieceId(), p1, e1);
     boundary_edges[id] = "yes";
-    
+
 
     std::string filename = get_boundary_edges_filename(user_params);
     std::ofstream ostream;
@@ -536,15 +572,15 @@ void puzzle::set_boundary_edge(int p1, int e1) {
         std::cerr << "Failed to open " << filename << " for writing" << std::endl;
         exit(1);
     }
-    
+
     std::time_t time = std::time(NULL);
     std::tm tm = *std::localtime(&time);
     ostream << std::put_time(&tm, "%a_%F_%T") << " " << id << "\n" << std::flush;
-    ostream.close();    
+    ostream.close();
 }
 
 bool puzzle::is_boundary_edge(int p1, int e1) {
-    std::string id = get_boundary_edge_id(user_params.getInitialPieceId(), p1, e1);    
+    std::string id = get_boundary_edge_id(user_params.getInitialPieceId(), p1, e1);
     std::map<std::string,std::string>::iterator it = boundary_edges.find(id);
     return it != boundary_edges.end();
 }
@@ -564,7 +600,7 @@ void puzzle::load_guided_matches() {
     std::string dateField;
     std::string isMatchField;
     std::string piecePairId;
-    
+
     while (true) {
 
         istream >> dateField;
@@ -573,11 +609,60 @@ void puzzle::load_guided_matches() {
         if (istream.eof()) {
             break;
         }
-        
+
         guided_matches[piecePairId] = isMatchField;
     }
-    
+
     istream.close();
+}
+
+bool puzzle::is_edge_matched(int initial_piece_id, int p1, int e1){
+
+      int id_p1 = p1 + initial_piece_id;
+      int id_e1 = (e1+1);
+
+      std::stringstream expr_stream;
+      std::map<std::string,std::string>::iterator it;
+
+      // p1 is first in match
+      expr_stream.str(std::string());
+      expr_stream << id_p1 << "-" << id_e1 << "-";
+      std::cout << "Search<" << expr_stream.str() << ">...";
+      for (it=guided_matches.begin(); it!=guided_matches.end(); it++)
+      {
+        if (it->first.find(expr_stream.str()) == 0)
+        {
+            if( it->second == GM_COMMAND_YES ){
+              //logger::stream() << "> Found " << expr_stream.str() << std::endl; logger::flush();
+              std::cout << "Found<" << expr_stream.str() << ":" << it->first << "> " << std::endl;
+              return true;
+            }else{
+              //logger::stream() << "> Found, but false " << expr_stream.str() << std::endl; logger::flush();
+              //return false;
+            }
+        }
+      }
+
+      // p1 is second in match
+      expr_stream.str(std::string());
+      expr_stream << "-" << id_p1 << "-" << id_e1;
+      std::cout << "Search<" << expr_stream.str() << ">...";
+      for (it=guided_matches.begin(); it!=guided_matches.end(); it++)
+      {
+        if (it->first.find(expr_stream.str()) != std::string::npos)
+        {
+            if( it->second == GM_COMMAND_YES ){
+              //logger::stream() << "> Found " << expr_stream.str() << std::endl; logger::flush();
+              std::cout << "Found<" << expr_stream.str() << ":" << it->first << "> " << std::endl;
+              return true;
+            }else{
+              //logger::stream() << "> Found, but false " << expr_stream.str() << std::endl; logger::flush();
+              //return false;
+            }
+        }
+      }
+      
+      return false;
 }
 
 // Returns a string identifying the piece-edge paring
@@ -587,59 +672,77 @@ std::string get_match_id(int initial_piece_id, int p1, int p2, int e1, int e2) {
     int id_e1;
     int id_p2;
     int id_e2;
-    
+
     if (p1 < p2) {
         id_p1 = p1 + initial_piece_id;
         id_e1 = (e1+1);
         id_p2 = p2 + initial_piece_id;
         id_e2 = (e2+1);
     } else {
-        id_p1 = p2 + initial_piece_id; 
+        id_p1 = p2 + initial_piece_id;
         id_e1 = (e2+1);
         id_p2 = p1 + initial_piece_id;
-        id_e2 = (e1+1);                
+        id_e2 = (e1+1);
     }
 
     std::stringstream idstream;
     idstream << id_p1 << "-" << id_e1 << "-" << id_p2 << "-" << id_e2;
-    return idstream.str();    
+    return idstream.str();
 }
 
 std::string puzzle::guide_match(int p1, int p2, int e1, int e2) {
-    
+
     std::string id = get_match_id(user_params.getInitialPieceId(), p1, p2, e1, e2);
-    
+
     std::map<std::string,std::string>::iterator it = guided_matches.find(id);
     if (it != guided_matches.end()) {
         return it->second;
     }
-    
+
     if (!user_params.isGuidedSolution()) {
         return "yes";  // "yes" results in the default automatic solution behavior
     }
-    
+
     double cscore;
     double escore;
     double score = pieces[p1].edges[e1].compare3(pieces[p2].edges[e2], cscore, escore);
+
+
+    /* skip if piece edge is in guided matches */
+    std::cout << "  Is matched?:: " <<
+      (p1+user_params.getInitialPieceId()) << "-" << (e1+1) << " ";
+    if (is_edge_matched(user_params.getInitialPieceId(), p1, e1)) {
+        //std::cout << "True" << std::endl;
+        return "no";
+    }
+    std::cout << "False" << std::endl;
+
+    std::cout << "  Is matched?:: " <<
+      (p2+user_params.getInitialPieceId()) << "-" << (e2+1) << " ";
+    if (is_edge_matched(user_params.getInitialPieceId(), p2, e2)) {
+        //std::cout << "True" << std::endl;
+        return "no";
+    }
+    std::cout << "False" << std::endl;
 
     std::string response;
     if (score == DBL_MAX || cscore > user_params.getCscoreLimit() || escore > user_params.getEscoreLimit()) {
       response = "no";
     } else {
-      std::cout << "Does piece " << (p1 + user_params.getInitialPieceId()) 
-		<< " fit to " << (p2 + user_params.getInitialPieceId()) 
+      std::cout << "Does piece " << (p1 + user_params.getInitialPieceId())
+		<< " fit to " << (p2 + user_params.getInitialPieceId())
 		<< " (scores: " << cscore << " / " << escore << ")"
 		<< " ? " << std::flush;
-    
+
       response = guided_match(pieces[p1], pieces[p2], e1, e2, user_params);
       std::cout << response << std::endl;
     }
-    
+
     if (response != "yes" && response != "no") {
         return response;
     }
     guided_matches[id] = response;
-    
+
 
     std::string filename = get_guided_matches_filename(user_params);
     std::ofstream ostream;
@@ -648,7 +751,7 @@ std::string puzzle::guide_match(int p1, int p2, int e1, int e2) {
         std::cerr << "Failed to open " << filename << " for writing" << std::endl;
         exit(1);
     }
-    
+
     std::time_t time = std::time(NULL);
     std::tm tm = *std::localtime(&time);
     ostream << std::put_time(&tm, "%a_%F_%T") << " " << response << " " << id << "\n" << std::flush;
@@ -658,16 +761,16 @@ std::string puzzle::guide_match(int p1, int p2, int e1, int e2) {
 
 std::string puzzle::set_to_string(cv::Mat_<int> set, int offset) {
     std::stringstream stream;
-    
+
     int width = 2;
     int max_id = pieces.size() + user_params.getInitialPieceId() -1;
     if (max_id > 99) {
         width = 3;
-    } 
+    }
     else if (max_id > 999) {
         width = 4;
     }
-    
+
     for(int row = 0; row < set.rows; ++row) {
         int* p = (int*)set.ptr(row);
         for(int col = 0; col < set.cols; ++col) {
@@ -682,22 +785,22 @@ std::string puzzle::set_to_string(cv::Mat_<int> set, int offset) {
         }
         stream << std::endl;
     }
-    
-    return stream.str();    
+
+    return stream.str();
 }
 
-// Generates and displays the solution as text (grid of piece IDs).  The text is also saved to 
+// Generates and displays the solution as text (grid of piece IDs).  The text is also saved to
 // <solution>.txt in the output directory.  The numbers are 1-based instead of zero-based so
 // that they correspond to the piece IDs.
 void puzzle::save_solution_text() {
     if(!solved) solve();
-    
+
     std::string solution_text = set_to_string(solution, user_params.getInitialPieceId());
     logger::stream() << solution_text << std::endl;
     logger::flush();
-    
+
     logger::stream() << "\nrotations:\n" << set_to_string(solution_rotations, 0) << std::endl;
-      
+
 }
 
 std::string puzzle::get_solution_image_pathname() {
@@ -711,18 +814,18 @@ std::string puzzle::get_solution_image_pathname() {
 //TODO: fail when puzzle is in configurations that are not possible i.e. holes
 void puzzle::save_solution_image(){
     if(!solved) solve();
-    
-    
+
+
     //Use get affine to map points...
     int out_image_size = 6000;
     cv::Mat out_image(out_image_size,out_image_size,CV_8UC3, cv::Scalar(200,50,3));
     int border = 10;
-    
+
     cv::Point2f ** points = new cv::Point2f*[solution.size[0]+1];
     for(int i = 0; i < solution.size[0]+1; ++i)
         points[i] = new cv::Point2f[solution.size[1]+1];
     bool failed=false;
-    
+
     logger::stream() << "Saving image..." << std::endl;
     logger::flush();
     for(int i=0; i<solution.size[0];i++){
@@ -739,7 +842,7 @@ void puzzle::save_solution_image(){
             float y_dist =(float) cv::norm(pieces[piece_number].get_corner(0)-pieces[piece_number].get_corner(1));
             std::vector<cv::Point2f> src;
             std::vector<cv::Point2f> dst;
-            
+
             if(i==0 && j==0){
                 points[i][j] = cv::Point2f(border,border);
             }
@@ -749,7 +852,7 @@ void puzzle::save_solution_image(){
             if(j==0){
                 points[i+1][j] = cv::Point2f(border,points[i][j].y+border+y_dist);
             }
-            
+
             dst.push_back(points[i][j]);
             dst.push_back(points[i+1][j]);
             dst.push_back(points[i][j+1]);
@@ -760,25 +863,25 @@ void puzzle::save_solution_image(){
             //true means use affine transform
             cv::Mat a_trans_mat = cv::estimateRigidTransform(src, dst,true);
             cv::Mat_<double> A = a_trans_mat;
-            
+
             //Lower right corner of each piece
             cv::Point2f l_r_c = pieces[piece_number].get_corner(2);
-            
+
             //Doing my own matrix multiplication
             points[i+1][j+1] = cv::Point2f((float)(A(0,0)*l_r_c.x+A(0,1)*l_r_c.y+A(0,2)),(float)(A(1,0)*l_r_c.x+A(1,1)*l_r_c.y+A(1,2)));
-            
-            
-            
+
+
+
             cv::Mat layer;
             cv::Mat layer_mask;
-            
+
             int layer_size = out_image_size;
-            
+
             cv::warpAffine(pieces[piece_number].full_color, layer, a_trans_mat, cv::Size2i(layer_size,layer_size),cv::INTER_LINEAR,cv::BORDER_TRANSPARENT);
             cv::warpAffine(pieces[piece_number].bw, layer_mask, a_trans_mat, cv::Size2i(layer_size,layer_size),cv::INTER_NEAREST,cv::BORDER_TRANSPARENT);
-            
+
             layer.copyTo(out_image(cv::Rect(0,0,layer_size,layer_size)), layer_mask);
-            
+
         }
         logger::stream() << std::endl; logger::flush();
 
@@ -788,16 +891,16 @@ void puzzle::save_solution_image(){
     }
 
     cv::Mat final_out_image;
-    
+
     utils::autocrop(out_image, final_out_image);
     cv::imwrite(get_solution_image_pathname(), final_out_image);
-    
-    
+
+
 
     for(int i = 0; i < solution.size[0]+1; ++i)
         delete points[i];
     delete[] points;
-    
+
 }
 
 
